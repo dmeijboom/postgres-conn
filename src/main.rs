@@ -19,6 +19,8 @@ fn main() -> io::Result<()> {
 }
 
 fn handle(conn: TcpStream) {
+    log::debug!("new connection");
+
     match Backend::new(conn).and_then(|mut b| b.handle()) {
         Ok(_) => log::debug!("connection closed"),
         Err(e) => log::error!("failed to handle connection: {}", e),

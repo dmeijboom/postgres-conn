@@ -114,6 +114,44 @@ impl Decode for StartupMessage {
     }
 }
 
+pub enum IncomingMessage {
+    Query(Query),
+    Terminate(Terminate),
+}
+
+impl Decode for IncomingMessage {
+    fn decode<R: Read>(reader: &mut Reader<R>) -> io::Result<Self>
+    where
+        Self: Sized,
+    {
+        let id = reader.read_byte()?;
+
+        match id {
+            b'Q' => Ok(IncomingMessage::Query(Query::decode(reader)?)),
+            b'X' => Ok(IncomingMessage::Terminate(Terminate::decode(reader)?)),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("invalid message type: {:?}", id),
+            )),
+        }
+    }
+}
+
+pub struct Terminate {
+    pub len: i32,
+}
+
+impl Decode for Terminate {
+    fn decode<R: Read>(reader: &mut Reader<R>) -> io::Result<Self>
+    where
+        Self: Sized,
+    {
+        let len = reader.read_i32()?;
+
+        Ok(Self { len })
+    }
+}
+
 #[derive(Debug)]
 pub struct Query {
     pub len: i32,
@@ -125,15 +163,6 @@ impl Decode for Query {
     where
         Self: Sized,
     {
-        let id = reader.read_byte()?;
-
-        if id != b'Q' {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("invalid message identifier: '{:?}'", id),
-            ));
-        }
-
         let len = reader.read_i32()?;
         let query = reader.read_string()?;
 
