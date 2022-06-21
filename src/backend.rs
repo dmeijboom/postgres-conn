@@ -2,8 +2,8 @@ use std::io;
 use std::net::TcpStream;
 
 use crate::proto::messages::{
-    AuthenticationOk, ErrorResponse, Handshake, IncomingMessage, ReadyForQuery, SSLResponse,
-    TransactionStatus,
+    AuthenticationOk, CommandComplete, ErrorResponse, Handshake, IncomingMessage, ReadyForQuery,
+    SSLResponse, TransactionStatus,
 };
 use crate::proto::{Decode, Encode, Reader, Writer};
 
@@ -130,6 +130,7 @@ impl Backend {
                 IncomingMessage::Query(query) => {
                     log::debug!("received query: {}", query.query);
 
+                    self.send(CommandComplete::new("SELECT 0".to_string()))?;
                     self.send(ReadyForQuery::new(TransactionStatus::Idle))?;
                 }
                 IncomingMessage::Terminate(_) => return Ok(()),

@@ -156,3 +156,21 @@ impl Encode for ReadyForQuery {
         self.transaction_status.encode(writer)
     }
 }
+
+pub struct CommandComplete {
+    pub command_tag: String,
+}
+
+impl CommandComplete {
+    pub fn new(command_tag: String) -> Self {
+        Self { command_tag }
+    }
+}
+
+impl Encode for CommandComplete {
+    fn encode<W: Write>(&self, writer: &mut Writer<W>) -> io::Result<()> {
+        writer.write_byte(b'C')?;
+        writer.write_i32(sizeof!(i32) + self.command_tag.len() as i32 + sizeof!(u8))?;
+        writer.write_str(&self.command_tag)
+    }
+}
