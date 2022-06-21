@@ -99,7 +99,7 @@ impl Backend {
     }
 
     pub fn handle(&mut self) -> io::Result<()> {
-        println!("handshake");
+        log::debug!("entering startup phase");
 
         loop {
             self.handle_startup()?;
@@ -108,6 +108,8 @@ impl Backend {
                 break;
             }
 
+            log::error!("no user specified, retrying startup");
+
             self.send(ErrorResponse::new(
                 "ERROR".to_string(),
                 "P0001".to_string(),
@@ -115,17 +117,16 @@ impl Backend {
             ))?;
         }
 
-        println!("authentication ok");
         // @TODO: we don't support authentication yet
         self.send(AuthenticationOk {})?;
-
-        println!("ready for query");
         self.send(ReadyForQuery::new(TransactionStatus::Idle))?;
+
+        log::debug!("waiting for queries");
 
         loop {
             let query: Query = self.recv()?;
 
-            println!("query: {:#?}", query);
+            log::debug!("received query: {}", query.query);
 
             self.send(ReadyForQuery::new(TransactionStatus::Idle))?;
         }

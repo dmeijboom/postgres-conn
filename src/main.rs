@@ -7,6 +7,8 @@ mod backend;
 mod proto;
 
 fn main() -> io::Result<()> {
+    pretty_env_logger::init();
+
     let listener = TcpListener::bind("127.0.0.1:5432")?;
 
     for stream in listener.incoming() {
@@ -17,10 +19,8 @@ fn main() -> io::Result<()> {
 }
 
 fn handle(conn: TcpStream) {
-    println!("incoming connection");
-
     match Backend::new(conn).and_then(|mut b| b.handle()) {
-        Ok(_) => println!("connection closed"),
-        Err(e) => eprintln!("failed to handle connection: {}", e),
+        Ok(_) => log::debug!("connection closed"),
+        Err(e) => log::error!("failed to handle connection: {}", e),
     }
 }
