@@ -35,13 +35,18 @@ impl<R: Read> Reader<R> {
         Ok(i32::from_be_bytes(buf))
     }
 
-    pub fn read_string(&mut self) -> io::Result<String> {
+    pub fn read_string_bytes(&mut self) -> io::Result<Vec<u8>> {
         let mut buf = vec![];
         self.buf_reader.read_until(b'\0', &mut buf)?;
 
         // Remove the null byte
         buf.pop();
 
-        String::from_utf8(buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        Ok(buf)
+    }
+
+    pub fn read_string(&mut self) -> io::Result<String> {
+        String::from_utf8(self.read_string_bytes()?)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 }

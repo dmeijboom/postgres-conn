@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::io;
 
-use crate::backend::Conn;
+use crate::backend::auth::{AuthMethod, AuthResult};
+use crate::backend::{Auth, Conn};
 
 use crate::proto::messages::{
-    AuthenticationOk, CommandComplete, ErrorResponse, Handshake, IncomingMessage, ReadyForQuery,
-    SSLResponse, TransactionStatus,
+    AuthenticationCleartextPassword, AuthenticationOk, CommandComplete, ErrorResponse, Handshake,
+    IncomingMessage, ReadyForQuery, SSLResponse, TransactionStatus,
 };
 
 pub enum Replication {
@@ -32,17 +33,19 @@ impl Default for State {
     }
 }
 
-pub struct Manager {
+pub struct Manager<A: Auth> {
     conn: Conn,
     state: State,
+    authenticator: A,
     postgres_version: i32,
 }
 
-impl Manager {
-    pub fn new(conn: Conn) -> io::Result<Self> {
+impl<A: Auth> Manager<A> {
+    pub fn new(conn: Conn, authenticator: A) -> io::Result<Self> {
         Ok(Self {
             conn,
             state: State::default(),
+            authenticator,
             postgres_version: 0,
         })
     }
@@ -87,6 +90,16 @@ impl Manager {
         Ok(())
     }
 
+    pub fn auth(&mut self, method: AuthMethod) -> io::Result<AuthResult> {
+        Ok(match method {
+            AuthMethod::CleartextPassword => {
+                self.conn.send(AuthenticationCleartextPassword {})?;
+                self.authenticator.clear_text_password(self.conn.recv()?)
+            }
+            AuthMethod::None => AuthResult::Ok,
+        })
+    }
+
     pub fn handle(&mut self) -> io::Result<()> {
         log::debug!("entering startup phase");
 
@@ -106,8 +119,22 @@ impl Manager {
             ))?;
         }
 
-        // @TODO: we don't support authentication yet
-        self.conn.send(AuthenticationOk {})?;
+        let method = self.authenticator.method(&self.state);
+        log::debug!("selecting auth method: {:?}", method);
+
+        match self.auth(method)? {
+            AuthResult::Ok => self.conn.send(AuthenticationOk {})?,
+            AuthResult::Err(msg) => {
+                log::debug!("auth failed: {}", msg);
+
+                return self.conn.send(ErrorResponse::new(
+                    "ERROR".to_string(),
+                    "28P01".to_string(),
+                    msg,
+                ));
+            }
+        };
+
         self.conn
             .send(ReadyForQuery::new(TransactionStatus::Idle))?;
 

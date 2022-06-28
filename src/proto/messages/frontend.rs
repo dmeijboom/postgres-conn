@@ -1,6 +1,8 @@
 use std::io;
 use std::io::Read;
 
+use secstr::SecStr;
+
 use crate::proto::{Decode, Reader};
 
 const SSL_REQUEST_CODE: i32 = 80877103;
@@ -167,5 +169,25 @@ impl Decode for Query {
         let query = reader.read_string()?;
 
         Ok(Self { len, query })
+    }
+}
+
+pub struct PasswordMessage {
+    pub len: i32,
+    pub password: SecStr,
+}
+
+impl Decode for PasswordMessage {
+    fn decode<R: Read>(reader: &mut Reader<R>) -> io::Result<Self>
+    where
+        Self: Sized,
+    {
+        let len = reader.read_i32()?;
+        let password = reader.read_string_bytes()?;
+
+        Ok(Self {
+            len,
+            password: SecStr::new(password),
+        })
     }
 }

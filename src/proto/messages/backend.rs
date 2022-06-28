@@ -27,15 +27,27 @@ impl Encode for SSLResponse {
     }
 }
 
-pub struct AuthenticationOk {}
+macro_rules! impl_auth_msg {
+    ($(($ty:ident, $kind:expr)),+) => {
+        $(impl_auth_msg!{$ty, $kind})+
+    };
 
-impl Encode for AuthenticationOk {
-    fn encode<W: Write>(&self, writer: &mut Writer<W>) -> io::Result<()> {
-        writer.write_byte(b'R')?;
-        writer.write_i32(sizeof!(i32) + sizeof!(i32))?;
-        writer.write_i32(0)
-    }
+    ($ty:ident, $kind:expr) => {
+        pub struct $ty {}
+
+        impl Encode for $ty {
+            fn encode<W: Write>(&self, writer: &mut Writer<W>) -> io::Result<()> {
+                writer.write_byte(b'R')?;
+                writer.write_i32(sizeof!(i32) + sizeof!(i32))?;
+                writer.write_i32($kind)
+            }
+        }
+    };
 }
+impl_auth_msg!(
+    (AuthenticationOk, 0),
+    (AuthenticationCleartextPassword, 3)
+);
 
 #[allow(dead_code)]
 pub enum Field {

@@ -1,7 +1,7 @@
 use std::io;
 use std::net::{TcpListener, TcpStream};
 
-use crate::backend::{Conn, Manager};
+use crate::backend::{Conn, Manager, NoneAuth};
 
 mod backend;
 mod proto;
@@ -22,7 +22,7 @@ fn handle(stream: TcpStream) {
     log::debug!("new connection");
 
     match Conn::new(stream)
-        .and_then(|c| Manager::new(c))
+        .and_then(|c| Manager::new(c, NoneAuth::new()))
         .and_then(|mut b| b.handle())
     {
         Ok(_) => log::debug!("connection closed"),
