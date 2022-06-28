@@ -1,7 +1,7 @@
 use std::io;
 use std::net::{TcpListener, TcpStream};
 
-use crate::backend::Backend;
+use crate::backend::{Conn, Manager};
 
 mod backend;
 mod proto;
@@ -18,10 +18,13 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn handle(conn: TcpStream) {
+fn handle(stream: TcpStream) {
     log::debug!("new connection");
 
-    match Backend::new(conn).and_then(|mut b| b.handle()) {
+    match Conn::new(stream)
+        .and_then(|c| Manager::new(c))
+        .and_then(|mut b| b.handle())
+    {
         Ok(_) => log::debug!("connection closed"),
         Err(e) => log::error!("failed to handle connection: {}", e),
     }
