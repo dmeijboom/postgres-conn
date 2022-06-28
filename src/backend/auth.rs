@@ -14,7 +14,7 @@ pub enum AuthResult {
 
 pub trait Auth {
     fn method(&self, state: &State) -> AuthMethod;
-    fn clear_text_password(&self, _password: PasswordMessage) -> AuthResult {
+    fn clear_text_password(&self, _state: &State, _password: PasswordMessage) -> AuthResult {
         AuthResult::Err("Not implemented".to_string())
     }
 }

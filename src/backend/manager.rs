@@ -6,7 +6,7 @@ use crate::backend::{Auth, Conn};
 
 use crate::proto::messages::{
     AuthenticationCleartextPassword, AuthenticationOk, CommandComplete, ErrorResponse, Handshake,
-    IncomingMessage, ReadyForQuery, SSLResponse, TransactionStatus,
+    IncomingMessage, ReadyForQuery, SSLResponse, Severity, TransactionStatus,
 };
 
 pub enum Replication {
@@ -52,6 +52,7 @@ impl<A: Auth> Manager<A> {
 
     // In the startup phase we optionally setup SSL encryption (not implemented yet) and parse the
     // startup message which contains the initial state
+    // @TODO: support cancel-request
     fn handle_startup(&mut self) -> io::Result<()> {
         let handshake: Handshake = self.conn.recv()?;
         let startup_msg = match handshake {
@@ -94,7 +95,8 @@ impl<A: Auth> Manager<A> {
         Ok(match method {
             AuthMethod::CleartextPassword => {
                 self.conn.send(AuthenticationCleartextPassword {})?;
-                self.authenticator.clear_text_password(self.conn.recv()?)
+                self.authenticator
+                    .clear_text_password(&self.state, self.conn.recv()?)
             }
             AuthMethod::None => AuthResult::Ok,
         })
@@ -113,7 +115,7 @@ impl<A: Auth> Manager<A> {
             log::error!("no user specified, retrying startup");
 
             self.conn.send(ErrorResponse::new(
-                "ERROR".to_string(),
+                Severity::Error,
                 "P0001".to_string(),
                 "the 'user' option is mandatory".to_string(),
             ))?;
@@ -128,7 +130,7 @@ impl<A: Auth> Manager<A> {
                 log::debug!("auth failed: {}", msg);
 
                 return self.conn.send(ErrorResponse::new(
-                    "ERROR".to_string(),
+                    Severity::Error,
                     "28P01".to_string(),
                     msg,
                 ));

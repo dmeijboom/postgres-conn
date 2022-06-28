@@ -44,10 +44,7 @@ macro_rules! impl_auth_msg {
         }
     };
 }
-impl_auth_msg!(
-    (AuthenticationOk, 0),
-    (AuthenticationCleartextPassword, 3)
-);
+impl_auth_msg!((AuthenticationOk, 0), (AuthenticationCleartextPassword, 3));
 
 #[allow(dead_code)]
 pub enum Field {
@@ -96,15 +93,43 @@ impl Encode for Field {
     }
 }
 
+#[allow(dead_code)]
+pub enum Severity {
+    Error,
+    Fatal,
+    Panic,
+    Warning,
+    Notice,
+    Debug,
+    Info,
+    Log,
+}
+
+impl ToString for Severity {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Error => "ERROR",
+            Self::Fatal => "FATAL",
+            Self::Panic => "PANIC",
+            Self::Warning => "WARNING",
+            Self::Notice => "NOTICE",
+            Self::Debug => "DEBUG",
+            Self::Info => "INFO",
+            Self::Log => "LOG",
+        }
+        .to_string()
+    }
+}
+
 pub struct ErrorResponse {
     pub fields: Vec<(Field, String)>,
 }
 
 impl ErrorResponse {
-    pub fn new(severity: String, code: String, message: String) -> Self {
+    pub fn new(severity: Severity, code: String, message: String) -> Self {
         Self {
             fields: vec![
-                (Field::Severity, severity),
+                (Field::Severity, severity.to_string()),
                 (Field::Code, code),
                 (Field::Message, message),
             ],
