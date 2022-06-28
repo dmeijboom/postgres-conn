@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::io;
 
 use crate::backend::auth::{AuthMethod, AuthResult};
-use crate::backend::{Auth, Conn};
+use crate::backend::{Auth, Conn, QueryExec};
 
 use crate::proto::messages::{
-    AuthenticationCleartextPassword, AuthenticationOk, CommandComplete, ErrorResponse, Handshake,
+    AuthenticationCleartextPassword, AuthenticationOk, ErrorResponse, Field, Handshake,
     IncomingMessage, ReadyForQuery, SSLResponse, Severity, TransactionStatus,
 };
 
@@ -33,20 +33,22 @@ impl Default for State {
     }
 }
 
-pub struct Manager<A: Auth> {
+pub struct Manager<A: Auth, Q: QueryExec> {
     conn: Conn,
     state: State,
-    authenticator: A,
+    auth: A,
+    query_exec: Q,
     postgres_version: i32,
 }
 
-impl<A: Auth> Manager<A> {
-    pub fn new(conn: Conn, authenticator: A) -> io::Result<Self> {
+impl<A: Auth, Q: QueryExec> Manager<A, Q> {
+    pub fn new(conn: Conn, auth: A, query_exec: Q) -> io::Result<Self> {
         Ok(Self {
             conn,
-            state: State::default(),
-            authenticator,
+            auth: auth,
+            query_exec: query_exec,
             postgres_version: 0,
+            state: State::default(),
         })
     }
 
@@ -91,14 +93,14 @@ impl<A: Auth> Manager<A> {
         Ok(())
     }
 
-    pub fn auth(&mut self, method: AuthMethod) -> io::Result<AuthResult> {
+    pub fn handle_auth(&mut self, method: AuthMethod) -> io::Result<AuthResult> {
         Ok(match method {
             AuthMethod::CleartextPassword => {
                 self.conn.send(AuthenticationCleartextPassword {})?;
-                self.authenticator
+                self.auth
                     .clear_text_password(&self.state, self.conn.recv()?)
             }
-            AuthMethod::None => AuthResult::Ok,
+            AuthMethod::None => Ok(()),
         })
     }
 
@@ -121,18 +123,20 @@ impl<A: Auth> Manager<A> {
             ))?;
         }
 
-        let method = self.authenticator.method(&self.state);
+        let method = self.auth.method(&self.state);
         log::debug!("selecting auth method: {:?}", method);
 
-        match self.auth(method)? {
-            AuthResult::Ok => self.conn.send(AuthenticationOk {})?,
-            AuthResult::Err(msg) => {
+        match self.handle_auth(method)? {
+            Ok(_) => self.conn.send(AuthenticationOk {})?,
+            Err(e) => {
+                let msg = e.get_field(Field::Message).unwrap_or_default();
+
                 log::debug!("auth failed: {}", msg);
 
                 return self.conn.send(ErrorResponse::new(
                     Severity::Error,
                     "28P01".to_string(),
-                    msg,
+                    msg.to_string(),
                 ));
             }
         };
@@ -149,8 +153,11 @@ impl<A: Auth> Manager<A> {
                 IncomingMessage::Query(query) => {
                     log::debug!("received query: {}", query.query);
 
-                    self.conn
-                        .send(CommandComplete::new("SELECT 0".to_string()))?;
+                    match self.query_exec.execute(&query.query) {
+                        Ok(command_complete) => self.conn.send(command_complete),
+                        Err(e) => self.conn.send(e),
+                    }?;
+
                     self.conn
                         .send(ReadyForQuery::new(TransactionStatus::Idle))?;
                 }

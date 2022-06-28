@@ -3,7 +3,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 
 use clap::Parser;
 
-use crate::backend::{Conn, Manager, NoneAuth};
+use crate::backend::{Conn, Manager, NoopAuth, NoopQueryExec};
 
 mod backend;
 mod proto;
@@ -36,7 +36,7 @@ fn handle(stream: TcpStream) {
     log::info!("new connection");
 
     match Conn::new(stream)
-        .and_then(|c| Manager::new(c, NoneAuth::new()))
+        .and_then(|c| Manager::new(c, NoopAuth::new(), NoopQueryExec::new()))
         .and_then(|mut b| b.handle())
     {
         Ok(_) => log::info!("connection closed"),

@@ -1,5 +1,5 @@
 use crate::backend::State;
-use crate::proto::messages::PasswordMessage;
+use crate::proto::messages::{ErrorResponse, PasswordMessage, Severity};
 
 #[derive(Debug, PartialEq)]
 pub enum AuthMethod {
@@ -7,27 +7,28 @@ pub enum AuthMethod {
     None,
 }
 
-pub enum AuthResult {
-    Ok,
-    Err(String),
-}
+pub type AuthResult = Result<(), ErrorResponse>;
 
 pub trait Auth {
     fn method(&self, state: &State) -> AuthMethod;
     fn clear_text_password(&self, _state: &State, _password: PasswordMessage) -> AuthResult {
-        AuthResult::Err("Not implemented".to_string())
+        Err(ErrorResponse::new(
+            Severity::Error,
+            "XX000".to_string(),
+            "cleartext password not supported".to_string(),
+        ))
     }
 }
 
-pub struct NoneAuth {}
+pub struct NoopAuth {}
 
-impl NoneAuth {
+impl NoopAuth {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl Auth for NoneAuth {
+impl Auth for NoopAuth {
     fn method(&self, _state: &State) -> AuthMethod {
         AuthMethod::None
     }
@@ -39,6 +40,6 @@ mod tests {
 
     #[test]
     fn test_none_auth() {
-        assert_eq!(NoneAuth::new().method(&State::default()), AuthMethod::None);
+        assert_eq!(NoopAuth::new().method(&State::default()), AuthMethod::None);
     }
 }

@@ -47,6 +47,7 @@ macro_rules! impl_auth_msg {
 impl_auth_msg!((AuthenticationOk, 0), (AuthenticationCleartextPassword, 3));
 
 #[allow(dead_code)]
+#[derive(PartialEq)]
 pub enum Field {
     SeverityI18n,
     Severity,
@@ -122,7 +123,7 @@ impl ToString for Severity {
 }
 
 pub struct ErrorResponse {
-    pub fields: Vec<(Field, String)>,
+    fields: Vec<(Field, String)>,
 }
 
 impl ErrorResponse {
@@ -134,6 +135,13 @@ impl ErrorResponse {
                 (Field::Message, message),
             ],
         }
+    }
+
+    pub fn get_field(&self, field: Field) -> Option<&str> {
+        self.fields
+            .iter()
+            .find(|(f, _)| f == &field)
+            .map(|(_, s)| s.as_str())
     }
 }
 
@@ -194,20 +202,47 @@ impl Encode for ReadyForQuery {
     }
 }
 
+#[allow(dead_code)]
+pub enum CommandTag {
+    Insert(String, i32),
+    Delete(i32),
+    Update(i32),
+    Select(i32),
+    Move(i32),
+    Fetch(i32),
+    Copy(i32),
+}
+
+impl ToString for CommandTag {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Insert(oid, rows) => format!("SELECT {} {}", oid, rows),
+            Self::Delete(rows) => format!("DELETE {}", rows),
+            Self::Update(rows) => format!("UPDATE {}", rows),
+            Self::Select(rows) => format!("SELECT {}", rows),
+            Self::Move(rows) => format!("MOVE {}", rows),
+            Self::Fetch(rows) => format!("FETCH {}", rows),
+            Self::Copy(rows) => format!("COPY {}", rows),
+        }
+    }
+}
+
 pub struct CommandComplete {
-    pub command_tag: String,
+    pub command_tag: CommandTag,
 }
 
 impl CommandComplete {
-    pub fn new(command_tag: String) -> Self {
+    pub fn new(command_tag: CommandTag) -> Self {
         Self { command_tag }
     }
 }
 
 impl Encode for CommandComplete {
     fn encode<W: Write>(&self, writer: &mut Writer<W>) -> io::Result<()> {
+        let cmd_tag = self.command_tag.to_string();
+
         writer.write_byte(b'C')?;
-        writer.write_i32(sizeof!(i32) + self.command_tag.len() as i32 + sizeof!(u8))?;
-        writer.write_str(&self.command_tag)
+        writer.write_i32(sizeof!(i32) + cmd_tag.len() as i32 + sizeof!(u8))?;
+        writer.write_str(&cmd_tag)
     }
 }
